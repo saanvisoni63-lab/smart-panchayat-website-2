@@ -35,7 +35,7 @@ function normalizeMongoUri(value) {
   return v;
 }
 
-const MONGODB_URI = normalizeMongoUri(process.env.MONGODB_URI) || 'mongodb://localhost:27017/smart-panchayat';
+const MONGODB_URI = normalizeMongoUri(process.env.MONGODB_URI) || 'mongodb+srv://shaanuu08_db_user:Saanvi123@cluster0.zy6q12e.mongodb.net/?appName=Cluster0';
 
 async function connectToMongoWithRetry() {
   const retryMs = Number(process.env.MONGO_RETRY_MS || 10_000);
