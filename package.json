@@ -4,7 +4,7 @@
   "description": "Backend server for Smart Panchayat login notifications (email + SMS) with database",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node server.js",
     "dev": "nodemon src/server.js",
     "db:start": "mongod --dbpath ./data --logpath ./mongod.log"
   },
