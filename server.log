@@ -1,0 +1,7 @@
+
+> smart-panchayat-backend@1.0.0 start
+> node server.js
+
+📱 SMS Mode: TEST (SMS will be logged to console and saved to sms_logs.txt)
+Smart Panchayat backend listening on http://localhost:3000
+Open http://localhost:3000 in your browser to use the app.

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Smart Panchayat Dashboard</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+
+  <!-- LANDING PAGE -->
+  <div id="landingPage" class="landing-page">
+    <nav class="landing-nav">
+      <div class="landing-logo"><i class="fas fa-seedling"></i> Smart Panchayat</div>
+      <button class="btn ghost" id="navLoginBtn">Login / Sign Up</button>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="hero-content">
+        <h1><i class="fas fa-seedling"></i> Welcome to Smart Panchayat</h1>
+        <p class="hero-subtitle">Your Gateway to Digital Village Services</p>
+        <p class="hero-desc">Empowering citizens with easy access to government services, transparent governance, and
+          comprehensive village management.</p>
+        <button class="btn primary large" id="heroLoginBtn">
+          <i class="fas fa-sign-in-alt"></i> Get Started
+        </button>
+      </div>
+      <div class="hero-images">
+        <div class="hero-image-card">
+          <i class="fas fa-village"></i>
+          <p>Digital Village</p>
+        </div>
+        <div class="hero-image-card">
+          <i class="fas fa-users"></i>
+          <p>Community</p>
+        </div>
+        <div class="hero-image-card">
+          <i class="fas fa-handshake"></i>
+          <p>Services</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features-section">
+      <h2 class="section-title">Our Services</h2>
+      <div class="landing-features">
+        <div class="feature-card">
+          <i class="fas fa-concierge-bell"></i>
+          <h3>Village Services</h3>
+          <p>Apply for certificates, water & electricity connections, pensions, and more</p>
+        </div>
+        <div class="feature-card">
+          <i class="fas fa-gift"></i>
+          <h3>Government Schemes</h3>
+          <p>Explore and apply for various government benefits and schemes</p>
+        </div>
+        <div class="feature-card">
+          <i class="fas fa-exclamation-circle"></i>
+          <h3>Complaint Portal</h3>
+          <p>Register grievances and track their status online</p>
+        </div>
+        <div class="feature-card">
+          <i class="fas fa-calendar-alt"></i>
+          <h3>Village Events</h3>
+          <p>Stay informed about upcoming events, meetings, and camps</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="about-section">
+      <div class="about-content">
+        <div class="about-text">
+          <h2 class="section-title">About Smart Panchayat</h2>
+          <p>Smart Panchayat is a comprehensive digital platform designed to transform village governance and citizen
+            services. We bridge the gap between citizens and government services, making access to essential services
+            simple, transparent, and efficient.</p>
+          <p>Our mission is to empower every citizen with easy access to government services, certificates, schemes, and
+            complaint resolution - all from the comfort of their homes. We believe <br> digital inclusion and
+            transparent governance.</p>
+
+        </div>
+        <img src="about.png" alt="Smart Panchayat" style="width: 40vw; height: 40vh;">
+
+      </div>
+
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+      <div class="cta-content">
+        <h2>Ready to Get Started?</h2>
+        <p>Join thousands of citizens already using Smart Panchayat for their service needs</p>
+        <button class="btn primary large" id="ctaLoginBtn">
+          <i class="fas fa-user-plus"></i> Create Your Account Now
+        </button>
+      </div>
+    </section>
+  </div>
+
+  <!-- AUTH -->
+  <div id="authLayer" class="auth-layer hidden">
+    <div class="auth-background">
+      <div class="auth-bg-elements">
+        <div class="bg-circle bg-circle-1"></div>
+        <div class="bg-circle bg-circle-2"></div>
+        <div class="bg-circle bg-circle-3"></div>
+        <div class="bg-icon bg-icon-1"><i class="fas fa-village"></i></div>
+        <div class="bg-icon bg-icon-2"><i class="fas fa-users"></i></div>
+        <div class="bg-icon bg-icon-3"><i class="fas fa-handshake"></i></div>
+        <div class="bg-icon bg-icon-4"><i class="fas fa-seedling"></i></div>
+      </div>
+    </div>
+    <div class="layer">
+      <div class="auth-card" id="loginBox">
+        <h2><i class="fas fa-seedling"></i> Smart Panchayat</h2>
+        <!-- Password Login -->
+        <div id="passwordLoginForm">
+          <input id="loginUser" placeholder="Username" />
+          <input id="loginPass" type="password" placeholder="Password" />
+          <button class="btn primary" id="loginBtn">Login</button>
+        </div>
+
+        <p class="muted small" style="margin-top:16px;">Don't have an account? <a href="#" id="showSignup">Create
+            one</a></p>
+        <p class="muted small" style="margin-top:8px;">Admin? <a href="#" id="showAdminLogin">Admin Login</a></p>
+        <p class="muted small" style="margin-top:8px;">Forgot Password? <a href="#" id="showForgotPassword" onclick="switchAuth('forgot-password')">Recover/Create New</a></p>
+        <p id="loginError" class="error"></p>
+      </div>
+
+      <!-- Admin Login Box -->
+      <div class="auth-card hidden" id="adminLoginBox">
+        <h2><i class="fas fa-user-shield"></i> Admin Login</h2>
+        <input id="adminUsername" placeholder="Admin Username" />
+        <input id="adminPassword" type="password" placeholder="Admin Password" />
+        <button class="btn primary" id="adminLoginBtn" onclick="adminLogin()">Login as Admin</button>
+        <button class="btn ghost" id="backToUserLogin" onclick="switchAuth('login')">Back to User Login</button>
+        <p class="muted small" style="margin-top:16px;text-align:center;">New Admin? <a href="#" id="showAdminSignup"
+            onclick="switchAuth('admin-signup')">Register here</a></p>
+        <p id="adminLoginError" class="error"></p>
+      </div>
+
+      <!-- Admin Signup Box -->
+      <div class="auth-card hidden" id="adminSignupBox">
+        <h2><i class="fas fa-user-shield"></i> Admin Registration</h2>
+        <input id="adminSignupUser" placeholder="Admin Username" />
+        <input id="adminSignupEmail" placeholder="Email" />
+        <input id="adminSignupPhone" placeholder="Mobile Number" />
+        <input id="adminSignupPass" type="password" placeholder="Password" />
+        <button class="btn primary" id="adminSignupBtn" onclick="adminSignup()">Register Admin</button>
+        <button class="btn ghost" onclick="switchAuth('admin')">Back to Admin Login</button>
+        <p id="adminSignupMsg" class="muted small"></p>
+      </div>
+
+      <div class="auth-card hidden" id="signupBox">
+        <h2>Create Account</h2>
+        <input id="signupUser" placeholder="Username" />
+        <input id="signupEmail" placeholder="Email" />
+        <input id="signupPhone" placeholder="Mobile Number (with country code, e.g. +91XXXXXXXXXX)" />
+        <input id="signupPass" type="password" placeholder="Password" />
+        <button class="btn primary" id="signupBtn">Sign up</button>
+        <button class="btn ghost" id="backToLogin">Back</button>
+        <p id="signupMsg" class="muted small"></p>
+      </div>
+
+      <!-- Forgot Password Box -->
+      <div class="auth-card hidden" id="forgotPasswordBox">
+        <h2><i class="fas fa-key"></i> Forgot Password</h2>
+        <input id="forgotPasswordEmail" placeholder="Registered Email" />
+        <input id="forgotPasswordNewPass" type="password" placeholder="New Password" />
+        <button class="btn primary" id="forgotPasswordBtn" onclick="forgotPassword()">Reset Password</button>
+        <button class="btn ghost" id="backToLoginFromForgot" onclick="switchAuth('login')">Back to Login</button>
+        <p id="forgotPasswordMsg" class="muted small"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app" class="hidden">
+    <header class="topbar">
+      <div class="title"><i class="fas fa-seedling"></i> Smart Panchayat</div>
+      <div class="right">
+        <div id="welcomeText"></div>
+        <button id="logoutBtn" class="btn small danger"><i class="fas fa-sign-out-alt"></i> Logout</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="profile">
+          <div class="avatar"><i class="fas fa-user"></i></div>
+          <div>
+            <div id="profileName">User</div>
+            <div class="muted small">Citizen</div>
+          </div>
+        </div>
+
+        <nav class="nav" id="userNav">
+          <button class="nav-item active" onclick="loadContent('home')"><i class="fas fa-home"></i> Home</button>
+          <button class="nav-item" onclick="loadContent('services')"><i class="fas fa-concierge-bell"></i> Village
+            Services</button>
+          <button class="nav-item" onclick="loadContent('applications')"><i class="fas fa-folder-open"></i> My
+            Applications</button>
+          <button class="nav-item" onclick="loadContent('complaints')"><i class="fas fa-exclamation-circle"></i>
+            Complaints</button>
+          <button class="nav-item" onclick="loadContent('schemes')"><i class="fas fa-gift"></i> Schemes</button>
+          <button class="nav-item" onclick="loadContent('events')"><i class="fas fa-calendar-alt"></i> Events</button>
+        </nav>
+
+        <nav class="nav hidden" id="adminNav">
+          <button class="nav-item active" onclick="loadContent('admin-dashboard')"><i class="fas fa-user-shield"></i>
+            Dashboard</button>
+          <button class="nav-item" onclick="loadContent('admin-schemes')"><i class="fas fa-gift"></i> Manage
+            Schemes</button>
+          <button class="nav-item" onclick="loadContent('admin-tracking')"><i class="fas fa-chart-line"></i> Scheme
+            Tracking</button>
+          <button class="nav-item" onclick="loadContent('admin-users')"><i class="fas fa-users"></i> Applied
+            Users</button>
+          <button class="nav-item" onclick="loadContent('admin-services')"><i class="fas fa-concierge-bell"></i> Manage Services</button>
+          <button class="nav-item" onclick="loadContent('admin-complaints')"><i class="fas fa-ticket-alt"></i> Ticket
+            System</button>
+          <button class="nav-item" onclick="loadContent('admin-reports')"><i class="fas fa-chart-pie"></i> Charts &
+            Reports</button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <section id="contentArea"></section>
+      </main>
+    </div>
+  </div>
+
+  <!-- SCHEME MODAL -->
+  <div id="modalLayer" class="hidden">
+    <div class="modal scheme-modal" id="schemeModal">
+      <h3 id="schemeTitle"></h3>
+      <p id="schemeDesc"></p>
+      <div id="schemeFormArea" style="margin-top:18px;"></div>
+      <div style="display:flex;gap:10px;margin-top:18px;justify-content:center;">
+        <button class="btn ghost" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUCCESS MODAL -->
+  <div id="successModalLayer" class="hidden">
+    <div class="modal success-modal">
+      <div class="success-icon"><i class="fas fa-check-circle"></i></div>
+      <h3 id="successTitle">Application Submitted!</h3>
+      <p id="successMessage"></p>
+      <p class="muted small" id="successAppId"></p>
+      <div style="display:flex;gap:10px;margin-top:18px;justify-content:center;">
+        <button class="btn primary" id="successViewBtn" onclick="viewApplications()">View My Applications</button>
+        <button class="btn ghost" onclick="closeSuccessModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- EVENT DETAILS MODAL -->
+  <div id="eventModalLayer" class="hidden">
+    <div class="modal event-modal">
+      <h3 id="eventModalTitle"></h3>
+      <p id="eventModalDesc"></p>
+      <div class="event-modal-details">
+        <p id="eventModalDate"></p>
+        <p id="eventModalTime"></p>
+        <p id="eventModalLocation"></p>
+        <p id="eventModalOrganizer"></p>
+        <p><i class="fas fa-users"></i> <strong id="eventModalAttendees">0</strong> people registered</p>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px;justify-content:center;">
+        <button class="btn primary" id="eventRegisterBtn">Register Now</button>
+        <button class="btn ghost" onclick="closeEventModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ONBOARDING/WELCOME MODAL -->
+  <div id="onboardingLayer" class="hidden">
+    <div class="modal onboarding-modal">
+      <div class="onboarding-header">
+        <h2 id="onboardingTitle">Welcome to Smart Panchayat!</h2>
+        <p id="onboardingSubtitle">Let's get you started</p>
+      </div>
+      <div class="onboarding-content" id="onboardingContent">
+        <!-- Content will be dynamically inserted -->
+      </div>
+      <div class="onboarding-progress">
+        <div class="progress-dots" id="progressDots"></div>
+      </div>
+      <div class="onboarding-actions">
+        <button class="btn ghost" id="onboardingSkip" onclick="skipOnboarding()">Skip</button>
+        <button class="btn primary" id="onboardingNext" onclick="nextOnboardingStep()">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHATBOT -->
+  <div id="chatbotContainer" class="chatbot-container hidden">
+    <div class="chatbot-header">
+      <div class="chatbot-title">
+        <i class="fas fa-robot"></i> AI Assistant
+      </div>
+      <button class="chatbot-close" onclick="toggleChatbot()">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="chatbot-messages" id="chatbotMessages">
+      <div class="message bot-message">
+        <div class="message-content">
+          Hello! I'm your Smart Panchayat AI assistant. How can I help you today?
+        </div>
+      </div>
+    </div>
+    <div class="chatbot-input">
+      <input type="text" id="chatbotInput" placeholder="Type your message..." onkeypress="handleChatbotKeyPress(event)">
+      <button class="chatbot-send" onclick="sendChatbotMessage()">
+        <i class="fas fa-paper-plane"></i>
+      </button>
+    </div>
+  </div>
+  <button class="chatbot-toggle" onclick="toggleChatbot()" title="Chat with AI Assistant">
+    <i class="fas fa-comments"></i>
+  </button>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
