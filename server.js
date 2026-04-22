@@ -11,7 +11,7 @@ const http = require('http');
 const fs = require('fs');
 
 // Models
-const User = require('./models/user');
+const User = require('./models/User');
 const Admin = require('./models/Admin');
 const Application = require('./models/Application');
 const SchemeStats = require('./models/SchemeStats');
