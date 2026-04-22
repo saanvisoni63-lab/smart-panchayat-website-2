@@ -11,11 +11,11 @@ const http = require('http');
 const fs = require('fs');
 
 // Models
-const User = require('./models/User');
-const Admin = require('./models/Admin');
-const Application = require('./models/Application');
-const SchemeStats = require('./models/SchemeStats');
-const Complaint = require('./models/Complaint');
+const User = require('./User');
+const Admin = require('./Admin');
+const Application = require('./Application');
+const SchemeStats = require('./SchemeStats');
+const Complaint = require('./Complaint');
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
