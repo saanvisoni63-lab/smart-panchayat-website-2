@@ -11,11 +11,11 @@ const http = require('http');
 const fs = require('fs');
 
 // Models
-const User = require('./User');
-const Admin = require('./Admin');
-const Application = require('./Application');
-const SchemeStats = require('./SchemeStats');
-const Complaint = require('./Complaint');
+const User = require('./models/User');
+const Admin = require('./models/Admin');
+const Application = require('./models/Application');
+const SchemeStats = require('./models/SchemeStats');
+const Complaint = require('./models/Complaint');
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
@@ -387,7 +387,10 @@ app.post('/api/user/activity/scheme-view', async (req, res) => {
     if (schemeName) {
       await SchemeStats.findOneAndUpdate(
         { schemeName },
-        { $addToSet: { interestedUsers: username } },
+        {
+          $addToSet: { interestedUsers: username },
+          $push: { viewEvents: { username, at: new Date() } }
+        },
         { upsert: true, new: true }
       );
     }
@@ -410,7 +413,8 @@ app.post('/api/schemes/apply-click', async (req, res) => {
     await SchemeStats.findOneAndUpdate(
       { schemeName },
       {
-        $addToSet: { appliedUsers: username }
+        $addToSet: { appliedUsers: username },
+        $push: { applyEvents: { username, at: new Date() } }
       },
       { upsert: true, new: true }
     );
@@ -620,13 +624,40 @@ app.get('/api/admin/scheme-tracking', async (req, res) => {
   try {
     const stats = await SchemeStats.find();
 
-    const formattedStats = stats.map(s => ({
-      schemeName: s.schemeName,
-      schemeType: 'Government Scheme',
-      clicks: (s.interestedUsers ? s.interestedUsers.length : 0) + (s.appliedUsers ? s.appliedUsers.length : 0),
-      viewedBy: s.interestedUsers || [],
-      appliedBy: s.appliedUsers || []
-    }));
+    const formatUserEvents = (events, legacyUsernames) => {
+      const map = new Map();
+      (events || []).forEach(ev => {
+        const u = ev.username;
+        if (!u) return;
+        const t = ev.at ? new Date(ev.at).getTime() : 0;
+        if (!map.has(u)) map.set(u, []);
+        map.get(u).push(t);
+      });
+      (legacyUsernames || []).forEach(u => {
+        if (!map.has(u)) map.set(u, []);
+      });
+      return [...map.entries()].map(([username, times]) => ({
+        username,
+        dates: times
+          .filter(Boolean)
+          .sort((a, b) => a - b)
+          .map(ms => new Date(ms).toISOString())
+      }));
+    };
+
+    const formattedStats = stats.map(s => {
+      const viewedList = formatUserEvents(s.viewEvents, s.interestedUsers);
+      const appliedList = formatUserEvents(s.applyEvents, s.appliedUsers);
+      const viewCount = (s.viewEvents && s.viewEvents.length) || (s.interestedUsers && s.interestedUsers.length) || 0;
+      const applyCount = (s.applyEvents && s.applyEvents.length) || (s.appliedUsers && s.appliedUsers.length) || 0;
+      return {
+        schemeName: s.schemeName,
+        schemeType: 'Government Scheme',
+        clicks: viewCount + applyCount,
+        viewedBy: viewedList,
+        appliedBy: appliedList
+      };
+    });
 
     return res.json({ success: true, stats: formattedStats });
   } catch (err) {
@@ -753,15 +784,27 @@ app.get('/api/applications', async (req, res) => {
   }
 });
 
-// ----- COMPLAINTS (Ticket System) -----
+// ----- COMPLAINTS (complaint tracking) -----
 
 // Submit a new complaint
 app.post('/api/complaints', async (req, res) => {
   try {
-    const { applicantName, type, description, username } = req.body;
+    const { applicantName, type, description, username, photoData } = req.body;
 
     if (!applicantName || !type || !description) {
       return res.status(400).json({ success: false, message: 'All fields are required' });
+    }
+
+    let photo = '';
+    if (photoData != null && String(photoData).trim() !== '') {
+      const p = String(photoData);
+      if (p.length > 4_000_000) {
+        return res.status(400).json({ success: false, message: 'Photo is too large. Use an image under 1.5 MB.' });
+      }
+      if (!/^data:image\/(png|jpeg|jpg|gif|webp);base64,/i.test(p)) {
+        return res.status(400).json({ success: false, message: 'Photo must be a JPEG, PNG, GIF, or WebP image.' });
+      }
+      photo = p;
     }
 
     const complaintId = 'CMP-' + Date.now();
@@ -771,7 +814,8 @@ app.post('/api/complaints', async (req, res) => {
       type,
       description,
       username: username || 'guest',
-      status: 'Open'
+      status: 'Open',
+      photoData: photo
     });
 
     return res.status(201).json({
@@ -837,7 +881,7 @@ app.post('/api/admin/complaints/:id/status', async (req, res) => {
 
     return res.json({
       success: true,
-      message: `Complaint ticket updated successfully`,
+      message: `Complaint updated successfully`,
       complaint: updated
     });
   } catch (err) {

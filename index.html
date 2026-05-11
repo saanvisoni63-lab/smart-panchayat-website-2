@@ -88,7 +88,7 @@
             transparent governance.</p>
 
         </div>
-        <img src="about.png" alt="Smart Panchayat" style="width: 40vw; height: 40vh;">
+        <img src="about.png" alt="Smart Panchayat" class="about-image">
 
       </div>
 
@@ -216,19 +216,16 @@
         </nav>
 
         <nav class="nav hidden" id="adminNav">
-          <button class="nav-item active" onclick="loadContent('admin-dashboard')"><i class="fas fa-user-shield"></i>
+          <button type="button" class="nav-item active" data-nav="admin-dashboard" onclick="loadContent('admin-dashboard')"><i class="fas fa-user-shield"></i>
             Dashboard</button>
-          <button class="nav-item" onclick="loadContent('admin-schemes')"><i class="fas fa-gift"></i> Manage
-            Schemes</button>
-          <button class="nav-item" onclick="loadContent('admin-tracking')"><i class="fas fa-chart-line"></i> Scheme
+          <button type="button" class="nav-item" data-nav="admin-tracking" onclick="loadContent('admin-tracking')"><i class="fas fa-chart-line"></i> Scheme
             Tracking</button>
-          <button class="nav-item" onclick="loadContent('admin-users')"><i class="fas fa-users"></i> Applied
+          <button type="button" class="nav-item" data-nav="admin-users" onclick="loadContent('admin-users')"><i class="fas fa-users"></i> Applied
             Users</button>
-          <button class="nav-item" onclick="loadContent('admin-services')"><i class="fas fa-concierge-bell"></i> Manage Services</button>
-          <button class="nav-item" onclick="loadContent('admin-complaints')"><i class="fas fa-ticket-alt"></i> Ticket
-            System</button>
-          <button class="nav-item" onclick="loadContent('admin-reports')"><i class="fas fa-chart-pie"></i> Charts &
-            Reports</button>
+          <button type="button" class="nav-item" data-nav="admin-services" onclick="loadContent('admin-services')"><i class="fas fa-concierge-bell"></i> Manage
+            Services</button>
+          <button type="button" class="nav-item" data-nav="admin-complaints" onclick="loadContent('admin-complaints')"><i class="fas fa-clipboard-list"></i>
+            Complaint Tracking</button>
         </nav>
       </aside>
 

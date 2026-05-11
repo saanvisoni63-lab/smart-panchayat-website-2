@@ -1,6 +1,42 @@
 /* Smart Panchayat - main script (localStorage) */
 const $ = id => document.getElementById(id);
 
+let adminComplaintsCache = [];
+
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function normalizeSchemeParticipant(entry) {
+  if (typeof entry === 'string') return { username: entry, dates: [] };
+  return { username: entry.username || 'Unknown', dates: Array.isArray(entry.dates) ? entry.dates : [] };
+}
+
+function safeComplaintPhotoSrc(photoData) {
+  if (!photoData || typeof photoData !== 'string') return '';
+  if (photoData.length > 4_000_000) return '';
+  if (!/^data:image\/(png|jpeg|jpg|gif|webp);base64,/i.test(photoData)) return '';
+  return photoData;
+}
+
+function formatSchemeParticipantHtml(entry, kind) {
+  const { username, dates } = normalizeSchemeParticipant(entry);
+  const cls = kind === 'viewed'
+    ? 'scheme-track-participant scheme-track-participant--viewed'
+    : 'scheme-track-participant scheme-track-participant--applied';
+  let datesText = 'No timestamp stored';
+  if (dates.length) {
+    datesText = dates.map(iso => new Date(iso).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })).join(' · ');
+  }
+  return `<span class="${cls}"><strong>${escapeHtml(username)}</strong><span class="scheme-track-dates">${escapeHtml(datesText)}</span></span>`;
+}
+
 /* ---------- startup ---------- */
 document.addEventListener("DOMContentLoaded", () => {
   // wire up auth controls (some elements may not exist right away)
@@ -542,9 +578,11 @@ function saveComplaints(list) { localStorage.setItem("sp_complaints", JSON.strin
 
 /* ---------- main navigation / content ---------- */
 function loadContent(type) {
-  // nav active
+  // nav active (prefer explicit data-nav for admin routes)
   document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
-  const btn = [...document.querySelectorAll(".nav-item")].find(b => b.textContent.toLowerCase().includes(type));
+  const allNav = [...document.querySelectorAll(".nav-item")];
+  const btn = allNav.find(b => b.dataset.nav === type)
+    || allNav.find(b => b.textContent.toLowerCase().includes(type));
   if (btn) btn.classList.add("active");
 
   // Hide/show proper nav based on user type
@@ -591,7 +629,6 @@ function loadContent(type) {
         <div class="card" onclick="openService('trade_license')"><i class="fas fa-store"></i><div>Trade/Shop License</div></div>
         <div class="card" onclick="openService('property_tax')"><i class="fas fa-file-invoice-dollar"></i><div>Property Tax Registration</div></div>
         <div class="card" onclick="openService('marriage_cert')"><i class="fas fa-ring"></i><div>Marriage Registration</div></div>
-        <div class="card" onclick="openService('cattle_reg')"><i class="fas fa-horse-head"></i><div>Cattle Registration</div></div>
         <div class="card" onclick="openService('family_tree')"><i class="fas fa-users"></i><div>Family Member Certificate</div></div>
 
         <!-- Local Village-Only Services (Non-Govt) -->
@@ -607,7 +644,6 @@ function loadContent(type) {
         <div class="card" onclick="openService('streetlight')"><i class="fas fa-lightbulb"></i><div>Street Light Repair</div></div>
         <div class="card" onclick="openService('drainage')"><i class="fas fa-broom"></i><div>Drainage Cleaning</div></div>
         <div class="card" onclick="openService('garbage')"><i class="fas fa-trash-alt"></i><div>Garbage Collection</div></div>
-        <div class="card" onclick="openService('water_tanker')"><i class="fas fa-truck-moving"></i><div>Water Tanker Request</div></div>
         <div class="card" onclick="openService('community_hall')"><i class="fas fa-building"></i><div>Community Hall Booking</div></div>
       </div>
       <div id="serviceArea" style="margin-top:18px"></div>`;
@@ -674,8 +710,8 @@ function loadContent(type) {
         </div>
         <div class="card" onclick="loadContent('admin-services')">
           <i class="fas fa-concierge-bell" style="font-size:32px;color:#3b82f6;"></i>
-          <h4>Village Services</h4>
-          <p>Manage Service Types</p>
+          <h4>Manage Services</h4>
+          <p>Applications &amp; approvals</p>
         </div>
         <div class="card" onclick="loadContent('admin-events')">
           <i class="fas fa-calendar-plus" style="font-size:32px;color:#14b8a6;"></i>
@@ -684,9 +720,9 @@ function loadContent(type) {
         </div>
 
         <div class="card" onclick="loadContent('admin-complaints')">
-          <i class="fas fa-ticket-alt" style="font-size:32px;color:#ec4899;"></i>
-          <h4>Ticket System</h4>
-          <p>Manage Complaints</p>
+          <i class="fas fa-clipboard-list" style="font-size:32px;color:#ec4899;"></i>
+          <h4>Complaint Tracking</h4>
+          <p>Review citizen complaints</p>
         </div>
       </div>`;
   }
@@ -710,13 +746,14 @@ function loadContent(type) {
   }
   else if (type === "admin-services") {
     html = `<h2><i class="fas fa-concierge-bell"></i> Manage Village Services</h2>
-            <div class="cards-grid" style="margin-bottom:24px;">
-              <div class="card"><i class="fas fa-file-alt" style="font-size:32px;color:var(--accent);"></i><h4 id="adminTotalApps">0</h4><p>Total</p></div>
-              <div class="card"><i class="fas fa-clock" style="font-size:32px;color:#f59e0b;"></i><h4 id="adminPendingApps">0</h4><p>Pending</p></div>
-              <div class="card"><i class="fas fa-check-circle" style="font-size:32px;color:#10b981;"></i><h4 id="adminApprovedApps">0</h4><p>Approved</p></div>
-              <div class="card"><i class="fas fa-times-circle" style="font-size:32px;color:#ef4444;"></i><h4 id="adminRejectedApps">0</h4><p>Rejected</p></div>
+            <p class="muted" style="margin:-8px 0 18px 0;max-width:640px;">Review and update status for village service requests. Use <strong>View</strong> to see the full form submitted by the citizen.</p>
+            <div class="admin-services-stats">
+              <div class="admin-services-stat admin-services-stat--total"><i class="fas fa-layer-group"></i><span class="admin-services-stat-value" id="adminTotalApps">0</span><span class="admin-services-stat-label">Total applications</span></div>
+              <div class="admin-services-stat admin-services-stat--pending"><i class="fas fa-hourglass-half"></i><span class="admin-services-stat-value" id="adminPendingApps">0</span><span class="admin-services-stat-label">Pending</span></div>
+              <div class="admin-services-stat admin-services-stat--approved"><i class="fas fa-check-circle"></i><span class="admin-services-stat-value" id="adminApprovedApps">0</span><span class="admin-services-stat-label">Approved</span></div>
+              <div class="admin-services-stat admin-services-stat--rejected"><i class="fas fa-times-circle"></i><span class="admin-services-stat-value" id="adminRejectedApps">0</span><span class="admin-services-stat-label">Rejected</span></div>
             </div>
-            <div id="adminApplicationsList"></div>`;
+            <div id="adminApplicationsList" class="admin-applications-wrap"></div>`;
     area.innerHTML = html;
     renderAdminApplications();
     return;
@@ -752,7 +789,8 @@ function loadContent(type) {
     return;
   }
   else if (type === "admin-complaints") {
-    html = `<h2><i class="fas fa-ticket-alt"></i> Ticket System</h2>
+    html = `<h2><i class="fas fa-clipboard-list"></i> Complaint Tracking</h2>
+            <p class="muted" style="margin:-8px 0 16px 0;">Every field submitted by the citizen is shown below. Use <strong>Update status</strong> to respond and change the case state.</p>
             <div id="adminComplaintsList"></div>`;
     area.innerHTML = html;
     renderAdminComplaints();
@@ -1396,35 +1434,31 @@ function renderAdminTracking() {
         <table class="admin-table">
           <thead>
             <tr>
-              <th>Scheme Name</th>
-              <th>Total Clicks</th>
-              <th>Viewed By (Names)</th>
-              <th>Applied By (Names)</th>
+              <th>Scheme name</th>
+              <th>Activity (views + applies)</th>
+              <th>Viewed (user &amp; date)</th>
+              <th>Applied (user &amp; date)</th>
             </tr>
           </thead>
           <tbody>`;
 
       stats.forEach(s => {
-        // Format viewed by
         let viewedNames = '<span style="color:#94a3b8; font-style:italic;">None</span>';
         if (s.viewedBy && s.viewedBy.length > 0) {
-          const uniqueViewers = [...new Set(s.viewedBy)];
-          viewedNames = uniqueViewers.map(name => `<span style="display:inline-block; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:12px; margin:2px; font-size:12px;">${name}</span>`).join(' ');
+          viewedNames = s.viewedBy.map(entry => formatSchemeParticipantHtml(entry, 'viewed')).join('');
         }
 
-        // Format applied by
         let appliedNames = '<span style="color:#94a3b8; font-style:italic;">None</span>';
         if (s.appliedBy && s.appliedBy.length > 0) {
-          const uniqueApplicants = [...new Set(s.appliedBy)];
-          appliedNames = uniqueApplicants.map(name => `<span style="display:inline-block; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:12px; margin:2px; font-size:12px;">${name}</span>`).join(' ');
+          appliedNames = s.appliedBy.map(entry => formatSchemeParticipantHtml(entry, 'applied')).join('');
         }
 
         html += `
           <tr>
-            <td style="font-weight:500; color:#1e293b;">${s.schemeName}</td>
+            <td style="font-weight:500; color:#1e293b;">${escapeHtml(s.schemeName)}</td>
             <td style="font-weight:bold; color:var(--primary);">${s.clicks || 0}</td>
-            <td style="max-width:300px;">${viewedNames}</td>
-            <td style="max-width:300px;">${appliedNames}</td>
+            <td style="max-width:340px; line-height:1.4;">${viewedNames}</td>
+            <td style="max-width:340px; line-height:1.4;">${appliedNames}</td>
           </tr>
         `;
       });
@@ -1458,16 +1492,20 @@ function renderAdminUsers() {
     .then(data => {
       if (data.success && data.users && data.users.length > 0) {
         let table = `<table class="admin-table">
-          <tr><th>Username</th><th>Email</th><th>Phone</th><th>Joined</th></tr>`;
+          <thead><tr><th>Username</th><th>Email</th><th>Phone</th><th>Registered on</th></tr></thead><tbody>`;
         data.users.forEach(u => {
-          const joined = new Date(u.createdAt).toLocaleDateString();
+          const createdRaw = u.createdAt || u.created_at;
+          const joined = createdRaw
+            ? new Date(createdRaw).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+            : '—';
           table += `<tr>
-            <td>${u.username}</td>
-            <td>${u.email || '-'}</td>
-            <td>${u.phone || '-'}</td>
-            <td>${joined}</td>
+            <td>${escapeHtml(u.username)}</td>
+            <td>${escapeHtml(u.email || '-')}</td>
+            <td>${escapeHtml(u.phone || '-')}</td>
+            <td>${escapeHtml(joined)}</td>
           </tr>`;
         });
+        table += '</tbody>';
         table += '</table>';
         area.innerHTML = table;
       } else {
@@ -1493,7 +1531,7 @@ function renderAdminApplications() {
     .then(res => res.json())
     .then(data => {
       if (!data.success) {
-        area.innerHTML = `< p class= "error" > ${data.message || 'Failed to load applications'}</p > `;
+        area.innerHTML = `<p class="error">${escapeHtml(data.message || 'Failed to load applications')}</p>`;
         return;
       }
 
@@ -1532,23 +1570,23 @@ function renderAdminApplications() {
       if (rejectedEl) rejectedEl.innerText = rejectedApps;
 
       if (!apps.length) {
-        area.innerHTML = `< div style = "text-align:center;padding:40px;" >
-          <i class="fas fa-folder-open" style="font-size:48px;color:var(--muted);margin-bottom:16px;"></i>
-          <p style="color:var(--muted);">No applications found.</p>
-        </div > `;
+        area.innerHTML = `<div style="text-align:center;padding:48px 24px;">
+          <i class="fas fa-folder-open" style="font-size:48px;color:var(--muted);margin-bottom:16px;display:block;"></i>
+          <p style="color:var(--muted);margin:0;">No applications found yet.</p>
+        </div>`;
         return;
       }
 
-      let html = `< div style = "overflow-x:auto;" >
-        <table style="width:100%;border-collapse:collapse;">
+      let html = `<div style="overflow-x:auto;">
+        <table class="admin-table">
           <thead>
-            <tr style="background:#f3f4f6;border-bottom:2px solid #e5e7eb;">
-              <th style="padding:12px;text-align:left;">Application ID</th>
-              <th style="padding:12px;text-align:left;">User</th>
-              <th style="padding:12px;text-align:left;">Service/Type</th>
-              <th style="padding:12px;text-align:left;">Submitted Date</th>
-              <th style="padding:12px;text-align:left;">Status</th>
-              <th style="padding:12px;text-align:left;">Actions</th>
+            <tr>
+              <th>Application ID</th>
+              <th>User</th>
+              <th>Service</th>
+              <th>Submitted</th>
+              <th>Status</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>`;
@@ -1562,52 +1600,52 @@ function renderAdminApplications() {
           'Under Process': '#3b82f6'
         }[a.status] || '#6b7280';
 
-        const dateStr = new Date(a.submittedAt).toLocaleString('en-IN');
-        // Handle scheme name differences and format snake_case gracefully
+        const submittedRaw = a.submittedAt || a.createdAt;
+        const dateStr = submittedRaw
+          ? new Date(submittedRaw).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+          : '—';
         const schemeName = a.scheme ? a.scheme.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'Unknown';
-        // Handle user field (API puts it in details.user, or we might need to populate it on backend)
-        // The backend /api/applications endpoint stores user in `details.user`.
         const userName = a.details?.user || 'Unknown';
 
-        html += `<tr style="border-bottom:1px solid #e5e7eb;">
-          <td style="padding:12px;"><code style="background:#f3f4f6;padding:4px 8px;border-radius:4px;font-size:12px;">${a._id}</code></td>
-          <td style="padding:12px;"><strong>${userName}</strong></td>
-          <td style="padding:12px;"><strong>${schemeName}</strong></td>
-          <td style="padding:12px;">${dateStr}</td>
-          <td style="padding:12px;">
-            <span style="background:${statusColor}20;color:${statusColor};padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${a.status}</span>
+        html += `<tr>
+          <td><code style="background:#f1f5f9;padding:4px 8px;border-radius:6px;font-size:12px;">${a._id}</code></td>
+          <td><strong>${escapeHtml(userName)}</strong></td>
+          <td><strong>${escapeHtml(schemeName)}</strong></td>
+          <td>${escapeHtml(dateStr)}</td>
+          <td>
+            <span style="background:${statusColor}20;color:${statusColor};padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${escapeHtml(a.status || '')}</span>
           </td>
-          <td style="padding:12px;">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn small ghost" onclick="viewApplicationDetails('${a._id}')" title="View Details">
+          <td>
+            <div class="admin-app-actions">
+              <button type="button" class="btn small ghost" onclick="viewApplicationDetails('${a._id}')" title="View full form">
                 <i class="fas fa-eye"></i> View
               </button>
               ${a.status === 'Pending' ? `
-                <button class="btn small primary" onclick="updateApplicationStatus('${a._id}', 'Approved')" title="Approve">
+                <button type="button" class="btn small primary" onclick="updateApplicationStatus('${a._id}', 'Approved')" title="Approve">
                   <i class="fas fa-check"></i> Approve
                 </button>
-                <button class="btn small" style="background:#3b82f6;color:white;" onclick="updateApplicationStatus('${a._id}', 'Under Process')" title="Mark Under Process">
+                <button type="button" class="btn small" style="background:#3b82f6;color:white;" onclick="updateApplicationStatus('${a._id}', 'Under Process')" title="Mark under process">
                   <i class="fas fa-spinner"></i> Process
                 </button>
-                <button class="btn small danger" onclick="updateApplicationStatus('${a._id}', 'Rejected')" title="Reject">
+                <button type="button" class="btn small danger" onclick="updateApplicationStatus('${a._id}', 'Rejected')" title="Reject">
                   <i class="fas fa-times"></i> Reject
                 </button>
               ` : ''}
               ${a.status === 'Under Process' ? `
-                <button class="btn small primary" onclick="updateApplicationStatus('${a._id}', 'Approved')" title="Approve">
+                <button type="button" class="btn small primary" onclick="updateApplicationStatus('${a._id}', 'Approved')" title="Approve">
                   <i class="fas fa-check"></i> Approve
                 </button>
-                <button class="btn small danger" onclick="updateApplicationStatus('${a._id}', 'Rejected')" title="Reject">
+                <button type="button" class="btn small danger" onclick="updateApplicationStatus('${a._id}', 'Rejected')" title="Reject">
                   <i class="fas fa-times"></i> Reject
                 </button>
               ` : ''}
               ${a.status === 'Approved' ? `
-                 <button class="btn small danger" onclick="updateApplicationStatus('${a._id}', 'Rejected')" title="Reject">
+                 <button type="button" class="btn small danger" onclick="updateApplicationStatus('${a._id}', 'Rejected')" title="Reject">
                   <i class="fas fa-times"></i> Reject
                 </button>
               ` : ''}
                ${a.status === 'Rejected' ? `
-                 <button class="btn small primary" onclick="updateApplicationStatus('${a._id}', 'Approved')" title="Approve">
+                 <button type="button" class="btn small primary" onclick="updateApplicationStatus('${a._id}', 'Approved')" title="Approve">
                   <i class="fas fa-check"></i> Approve
                 </button>
               ` : ''}
@@ -1616,7 +1654,7 @@ function renderAdminApplications() {
         </tr>`;
       });
 
-      html += `</tbody></table></div > `;
+      html += `</tbody></table></div>`;
       area.innerHTML = html;
     })
     .catch(err => {
@@ -1657,39 +1695,85 @@ function showComplaintForm() {
   const area = $("complaintArea");
   if (!area) return;
   area.innerHTML = `<h3>Register Complaint</h3>
-    <input id="cName" placeholder="Your Name">
-    <input id="cType" placeholder="Complaint Type (Water/Road/etc)">
-    <textarea id="cText" placeholder="Describe the issue..."></textarea>
-    <div style="margin-top:10px"><button class="btn primary" onclick="submitComplaint()">Submit Complaint</button></div>
-    <p id="cMsg" class="muted"></p>`;
+    <div style="display:flex;flex-direction:column;gap:10px;max-width:480px;">
+      <input id="cName" class="input" placeholder="Your Name">
+      <input id="cType" class="input" placeholder="Complaint Type (Water/Road/etc)">
+      <textarea id="cText" class="input" rows="4" placeholder="Describe the issue..."></textarea>
+      <div>
+        <label for="cPhoto" class="muted small" style="display:block;margin-bottom:6px;">Attach a photo (optional)</label>
+        <input type="file" id="cPhoto" class="input" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp">
+        <p class="muted small" style="margin:4px 0 0 0;">JPEG, PNG, GIF or WebP. Maximum file size 1.5 MB.</p>
+      </div>
+      <div style="margin-top:4px"><button type="button" class="btn primary" onclick="submitComplaint()">Submit Complaint</button></div>
+      <p id="cMsg" class="muted"></p>
+    </div>`;
 }
+
+const COMPLAINT_PHOTO_MAX_BYTES = 1.5 * 1024 * 1024;
 
 function submitComplaint() {
   const name = $("cName")?.value?.trim();
   const type = $("cType")?.value?.trim();
   const text = $("cText")?.value?.trim();
-  if (!name || !type || !text) { $("cMsg").innerText = "Please fill all fields."; return; }
+  const msgEl = $("cMsg");
+  if (!name || !type || !text) {
+    if (msgEl) msgEl.innerText = "Please fill in your name, complaint type, and description.";
+    return;
+  }
+
+  const fileInput = $("cPhoto");
+  const file = fileInput?.files?.[0];
+  if (file && file.size > COMPLAINT_PHOTO_MAX_BYTES) {
+    if (msgEl) msgEl.innerText = "Photo must be 1.5 MB or smaller.";
+    return;
+  }
 
   const user = sessionStorage.getItem("sp_user") || 'guest';
-  fetch('/api/complaints', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ applicantName: name, type, description: text, username: user })
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
-        $("cName").value = $("cType").value = $("cText").value = '';
-        showSuccessModal(
-          "Complaint Registered!",
-          `Your complaint regarding "${type}" has been registered successfully.`,
-          `Ticket ID: ${data.complaintId}`
-        );
-      } else {
-        $("cMsg").innerText = data.message || "Failed to submit.";
-      }
+
+  const postComplaint = (photoData) => {
+    fetch('/api/complaints', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ applicantName: name, type, description: text, username: user, photoData: photoData || '' })
     })
-    .catch(err => { console.error(err); $("cMsg").innerText = "Error connecting to server."; });
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          $("cName").value = $("cType").value = $("cText").value = '';
+          if (fileInput) fileInput.value = '';
+          if (msgEl) msgEl.innerText = '';
+          showSuccessModal(
+            "Complaint Registered!",
+            `Your complaint regarding "${type}" has been registered successfully.`,
+            `Complaint reference: ${data.complaintId}`
+          );
+        } else {
+          if (msgEl) msgEl.innerText = data.message || "Failed to submit.";
+        }
+      })
+      .catch(err => {
+        console.error(err);
+        if (msgEl) msgEl.innerText = "Error connecting to server.";
+      });
+  };
+
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== 'string' || !result.startsWith('data:image/')) {
+        if (msgEl) msgEl.innerText = "Please choose a valid image file.";
+        return;
+      }
+      postComplaint(result);
+    };
+    reader.onerror = () => {
+      if (msgEl) msgEl.innerText = "Could not read the photo. Try another file.";
+    };
+    reader.readAsDataURL(file);
+  } else {
+    postComplaint('');
+  }
 }
 
 function renderComplaints() {
@@ -1706,16 +1790,21 @@ function renderComplaints() {
         return;
       }
       let html = `<h3>All Complaints</h3><div style="overflow-x:auto;"><table style="width:100%;">
-        <tr><th>ID</th><th>Type</th><th>Status</th><th>Date</th><th>Admin Response</th></tr>`;
+        <tr><th>ID</th><th>Type</th><th>Photo</th><th>Status</th><th>Date</th><th>Admin Response</th></tr>`;
       data.complaints.forEach(c => {
         const dateStr = new Date(c.createdAt).toLocaleDateString('en-IN');
         const statusColor = c.status === 'Resolved' ? '#10b981' : (c.status === 'In Progress' ? '#f59e0b' : '#3b82f6');
+        const photoSrc = safeComplaintPhotoSrc(c.photoData);
+        const photoCell = photoSrc
+          ? `<img src="${photoSrc}" alt="" style="max-width:120px;max-height:90px;border-radius:8px;object-fit:cover;border:1px solid #e5e7eb;">`
+          : '<span class="muted">—</span>';
         html += `<tr>
-          <td><code style="background:#f3f4f6;padding:4px 8px;border-radius:4px;font-size:12px;">${c.complaintId}</code></td>
-          <td>${c.type}</td>
-          <td><span style="background:${statusColor}20;color:${statusColor};padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${c.status}</span></td>
-          <td>${dateStr}</td>
-          <td>${c.adminResponse ? `<pre style="white-space:pre-wrap;margin:0;font-size:13px;">${c.adminResponse}</pre>` : '-'}</td>
+          <td><code style="background:#f3f4f6;padding:4px 8px;border-radius:4px;font-size:12px;">${escapeHtml(c.complaintId)}</code></td>
+          <td>${escapeHtml(c.type)}</td>
+          <td>${photoCell}</td>
+          <td><span style="background:${statusColor}20;color:${statusColor};padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${escapeHtml(c.status)}</span></td>
+          <td>${escapeHtml(dateStr)}</td>
+          <td>${c.adminResponse ? `<pre style="white-space:pre-wrap;margin:0;font-size:13px;">${escapeHtml(c.adminResponse)}</pre>` : '-'}</td>
         </tr>`;
       });
       html += `</table></div>`;
@@ -2904,7 +2993,7 @@ async function loadEventsFromBackend() {
                     onclick="registerForEvent('${event.id}')" 
                     ${(isRegistered || userType === "admin") ? 'disabled' : ''}>
               <i class="fas fa-${isRegistered ? 'check' : 'user-plus'}"></i> 
-              ${userType === "admin" ? 'Admin Posted' : (isRegistered ? 'Going' : "I'm Going")}
+              ${userType === "admin" ? 'Admin Posted' : (isRegistered ? 'I have registered' : 'Register')}
             </button>
             <button class="btn ghost small" onclick="viewEventDetails('${event.id}')">
               <i class="fas fa-info-circle"></i> Details
@@ -3100,7 +3189,7 @@ async function removeAdminEvent(eventId) {
 function renderAdminComplaints() {
   const area = $("adminComplaintsList");
   if (!area) return;
-  area.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin fa-2px color-accent"></i></div>';
+  area.innerHTML = '<div style="text-align:center;padding:40px;"><i class="fas fa-spinner fa-spin" style="color:var(--accent);"></i></div>';
 
   fetch('/api/admin/complaints')
     .then(res => res.json())
@@ -3109,73 +3198,99 @@ function renderAdminComplaints() {
         area.innerHTML = '<p class="error">Failed to load complaints.</p>';
         return;
       }
-      const complaints = data.complaints;
+      const complaints = data.complaints || [];
+      adminComplaintsCache = complaints;
       if (!complaints.length) {
-        area.innerHTML = '<p>No complaints found.</p>';
+        area.innerHTML = '<p class="muted">No complaints registered yet.</p>';
         return;
       }
 
-      let html = `<div style="overflow-x:auto;">
-        <table style="width:100%;">
-          <tr><th>ID / Date</th><th>User / Name</th><th>Type / Desc</th><th>Status</th><th>Actions</th></tr>`;
-
+      let html = `<div class="admin-complaint-grid">`;
       complaints.forEach(c => {
-        const dateStr = new Date(c.createdAt).toLocaleDateString('en-IN');
+        const dateStr = c.createdAt
+          ? new Date(c.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+          : '—';
         const statusColor = c.status === 'Resolved' ? '#10b981' : (c.status === 'In Progress' ? '#f59e0b' : '#3b82f6');
+        const idEsc = escapeHtml(c.complaintId || '');
 
-        // Escape content safely for modal
-        const safeDesc = (c.description || '').replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\\n/g, "\\n");
-        const safeResp = (c.adminResponse || '').replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\\n/g, "\\n");
-
-        html += `<tr>
-          <td>
-            <strong>${c.complaintId}</strong><br>
-            <small class="muted">${dateStr}</small>
-          </td>
-          <td>
-            <strong>${c.applicantName}</strong><br>
-            <small class="muted">@${c.username}</small>
-          </td>
-          <td>
-            <strong>${c.type}</strong><br>
-            <small style="display:block;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${c.description}">${c.description}</small>
-          </td>
-          <td><span style="background:${statusColor}20;color:${statusColor};padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${c.status}</span></td>
-          <td>
-            <button class="btn small primary" onclick="showComplaintActionModal('${c.complaintId}', '${safeDesc}', '${c.status}', '${safeResp}')">
-               Take Action
+        html += `<article class="admin-complaint-card">
+          <div class="admin-complaint-card__head">
+            <div>
+              <span class="admin-complaint-card__id">${idEsc}</span>
+              <div class="admin-complaint-card__meta" style="margin-top:6px;">Submitted: ${escapeHtml(dateStr)}</div>
+            </div>
+            <span style="background:${statusColor}20;color:${statusColor};padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;">${escapeHtml(c.status || '')}</span>
+          </div>
+          <div><span class="admin-complaint-card__type">${escapeHtml(c.type || '')}</span></div>
+          <div>
+            <span class="muted small" style="display:block;margin-bottom:4px;">Applicant name</span>
+            <strong>${escapeHtml(c.applicantName || '')}</strong>
+          </div>
+          <div>
+            <span class="muted small" style="display:block;margin-bottom:4px;">Account (username)</span>
+            <code style="font-size:13px;background:#f1f5f9;padding:2px 8px;border-radius:6px;">${escapeHtml(c.username || '')}</code>
+          </div>
+          <div>
+            <span class="muted small" style="display:block;margin-bottom:6px;">Description (full text from citizen)</span>
+            <div class="admin-complaint-card__body">${escapeHtml(c.description || '')}</div>
+          </div>
+          ${safeComplaintPhotoSrc(c.photoData) ? `<div>
+            <span class="muted small" style="display:block;margin-bottom:6px;">Photo from citizen</span>
+            <img src="${safeComplaintPhotoSrc(c.photoData)}" alt="" style="max-width:100%;max-height:220px;border-radius:10px;object-fit:contain;border:1px solid #e2e8f0;background:#f8fafc;">
+          </div>` : ''}
+          ${c.adminResponse ? `<div>
+            <span class="muted small" style="display:block;margin-bottom:6px;">Admin response</span>
+            <div class="admin-complaint-card__response">${escapeHtml(c.adminResponse)}</div>
+          </div>` : ''}
+          <div class="admin-complaint-card__actions">
+            <button type="button" class="btn small primary" onclick='showComplaintActionModal(${JSON.stringify(c.complaintId)})'>
+              <i class="fas fa-edit"></i> Update status / response
             </button>
-          </td>
-        </tr>`;
+          </div>
+        </article>`;
       });
-      html += `</table></div>`;
+      html += `</div>`;
       area.innerHTML = html;
     })
     .catch(err => {
       console.error(err);
-      area.innerHTML = '<p class="error">Error loading tickets.</p>';
+      area.innerHTML = '<p class="error">Could not load complaints.</p>';
     });
 }
 
-function showComplaintActionModal(id, description, currentStatus, currentResponse) {
+function showComplaintActionModal(complaintId) {
+  const c = adminComplaintsCache.find(x => x.complaintId === complaintId);
+  if (!c) {
+    alert('Complaint not found. Refresh the list and try again.');
+    return;
+  }
+
+  const photoSrc = safeComplaintPhotoSrc(c.photoData);
+  const photoBlock = photoSrc
+    ? `<p><strong>Photo</strong></p>
+    <div style="margin-bottom:16px;"><img src="${photoSrc}" alt="" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid #e2e8f0;"></div>`
+    : '';
+
   const modalHTML = `
-    <h3>Ticket Action: ${id}</h3>
-    <p><strong>Description:</strong></p>
-    <div style="background:#f3f4f6;padding:10px;border-radius:6px;max-height:100px;overflow-y:auto;margin-bottom:15px;white-space:pre-wrap;">${description}</div>
-    
-    <label style="display:block;margin-bottom:6px;font-weight:500;">Update Status:</label>
+    <h3>Complaint: ${escapeHtml(c.complaintId)}</h3>
+    <p class="muted small" style="margin-bottom:12px;">Citizen: <strong>${escapeHtml(c.applicantName)}</strong> (${escapeHtml(c.username)}) · Type: <strong>${escapeHtml(c.type)}</strong></p>
+    <p><strong>Description</strong></p>
+    <div style="background:#f8fafc;padding:12px;border-radius:8px;max-height:160px;overflow-y:auto;margin-bottom:16px;white-space:pre-wrap;border:1px solid #e2e8f0;">${escapeHtml(c.description || '')}</div>
+    ${photoBlock}
+
+    <label style="display:block;margin-bottom:6px;font-weight:500;">Status</label>
     <select id="actionComplaintStatus" style="width:100%;padding:10px;margin-bottom:15px;border:1px solid #ccc;border-radius:6px;">
-      <option value="Open" ${currentStatus === 'Open' ? 'selected' : ''}>Open</option>
-      <option value="In Progress" ${currentStatus === 'In Progress' ? 'selected' : ''}>In Progress</option>
-      <option value="Resolved" ${currentStatus === 'Resolved' ? 'selected' : ''}>Resolved</option>
+      <option value="Open" ${c.status === 'Open' ? 'selected' : ''}>Open</option>
+      <option value="In Progress" ${c.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+      <option value="Resolved" ${c.status === 'Resolved' ? 'selected' : ''}>Resolved</option>
     </select>
-    
-    <label style="display:block;margin-bottom:6px;font-weight:500;">Admin Response:</label>
-    <textarea id="actionComplaintResponse" rows="4" placeholder="Type your response to the user here..." style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;">${currentResponse || ''}</textarea>
-    
+
+    <label style="display:block;margin-bottom:6px;font-weight:500;">Admin response (visible to citizen)</label>
+    <textarea id="actionComplaintResponse" rows="4" placeholder="Type your response here..." style="width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;"></textarea>
+
     <div style="display:flex;gap:10px;margin-top:15px;">
-      <button class="btn primary" onclick="updateComplaintStatus('${id}')" style="flex:1;">Update Ticket</button>
-      <button class="btn ghost" onclick="closeModal()" style="flex:1;">Cancel</button>
+      <button type="button" class="btn primary" onclick='updateComplaintStatus(${JSON.stringify(c.complaintId)})' style="flex:1;">Save changes</button>
+      <button type="button" class="btn ghost" onclick="closeModal()" style="flex:1;">Cancel</button>
     </div>
   `;
 
@@ -3184,6 +3299,8 @@ function showComplaintActionModal(id, description, currentStatus, currentRespons
 
   if (schemeModal && modalLayer) {
     schemeModal.innerHTML = modalHTML;
+    const ta = document.getElementById('actionComplaintResponse');
+    if (ta) ta.value = c.adminResponse || '';
     modalLayer.classList.remove('hidden');
   }
 }
